@@ -7,10 +7,12 @@ Resolution order:
   2. FACILITIES_CSV    -> read a local/volume CSV (great for the real 10k export).
   3. built-in sample   -> messy demo records so the app always runs.
 
-Real columns are mapped to our canonical schema with COLUMN_MAP (JSON env), e.g.
-  COLUMN_MAP='{"facility_name":"name","services":"services_text","dist":"district"}'
-Canonical columns: facility_id, name, facility_type, ownership, state, district,
-beds_total, latitude, longitude, services_text, infrastructure_text, notes_text.
+Real columns are mapped to our canonical schema automatically, or with COLUMN_MAP
+(JSON env) when a header needs an explicit override, e.g.
+  COLUMN_MAP='{"facility_name":"name","beds":"capacity"}'
+Canonical columns: facility_id, name, state, city, postcode, latitude, longitude,
+numberDoctors, capacity, yearEstablished, description, capability, procedure,
+equipment, specialties, source_urls.
 """
 import os
 import re
@@ -131,6 +133,8 @@ def _read_databricks_table(table: str) -> pd.DataFrame:
         kwargs["credentials_provider"] = lambda: oauth_service_principal(cfg)
 
     limit = int(os.environ.get("FACILITIES_LIMIT", "10000"))
+    if limit <= 0:
+        raise ValueError("FACILITIES_LIMIT must be a positive integer")
     with sql.connect(**kwargs) as conn:
         with conn.cursor() as cur:
             cur.execute(f"SELECT * FROM {table} LIMIT {limit}")

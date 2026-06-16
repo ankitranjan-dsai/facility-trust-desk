@@ -25,7 +25,7 @@ The offline rule engine alone still produces real citations + honest uncertainty
 ## Run locally (sample data)
 ```bash
 python3 -m venv .venv && source .venv/bin/activate
-pip install streamlit pandas
+pip install -r requirements.txt
 streamlit run app.py
 ```
 Opens with 12 deliberately-messy demo facilities (negation, broken equipment,

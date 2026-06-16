@@ -4,3 +4,4 @@ __pycache__/
 trustdesk_actions.db
 data/*.csv
 .DS_Store
+.env

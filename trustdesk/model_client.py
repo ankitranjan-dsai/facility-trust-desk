@@ -13,6 +13,9 @@ All imports are lazy so the app runs with only streamlit + pandas installed.
 import os
 import re
 import json
+import logging
+
+log = logging.getLogger("trustdesk.model_client")
 
 _SYSTEM = (
     "You are a careful health-facility data auditor. You judge whether a facility "
@@ -23,12 +26,14 @@ _SYSTEM = (
 
 
 def _build_prompt(source_text: str, capability_label: str) -> str:
+    safe_source = source_text.replace("<<<SOURCE_TEXT>>>", "<SOURCE_TEXT>")
+    safe_source = safe_source.replace("<<<END_SOURCE_TEXT>>>", "<END_SOURCE_TEXT>")
     return f"""CAPABILITY TO VERIFY: {capability_label}
 
 SOURCE TEXT (the only evidence you may use):
-\"\"\"
-{source_text}
-\"\"\"
+<<<SOURCE_TEXT>>>
+{safe_source}
+<<<END_SOURCE_TEXT>>>
 
 Rules:
 - Use ONLY the source text. No outside knowledge or assumptions.
@@ -58,12 +63,23 @@ def _safe_json(raw: str):
         return None
 
 
+def _env_int(name: str, default: int) -> int:
+    try:
+        value = int(os.environ.get(name, str(default)))
+        return value if value > 0 else default
+    except ValueError:
+        log.warning("Invalid %s; using default %s", name, default)
+        return default
+
+
 def _try_databricks(prompt: str):
     endpoint = os.environ.get("DATABRICKS_MODEL_ENDPOINT", "databricks-meta-llama-3-3-70b-instruct")
     try:
         from databricks.sdk import WorkspaceClient
+        from databricks.sdk.core import Config
         from databricks.sdk.service.serving import ChatMessage, ChatMessageRole
-        w = WorkspaceClient()
+        timeout = _env_int("DATABRICKS_MODEL_TIMEOUT_SECONDS", 30)
+        w = WorkspaceClient(config=Config(http_timeout_seconds=timeout))
         resp = w.serving_endpoints.query(
             name=endpoint,
             messages=[
@@ -74,7 +90,8 @@ def _try_databricks(prompt: str):
             max_tokens=600,
         )
         return resp.choices[0].message.content, f"databricks:{endpoint}"
-    except Exception:
+    except Exception as e:  # noqa: BLE001
+        log.warning("Databricks model provider failed: %s", e)
         return None
 
 
@@ -84,14 +101,15 @@ def _try_openai(prompt: str):
     try:
         from openai import OpenAI
         model = os.environ.get("OPENAI_MODEL", "gpt-4o-mini")
-        client = OpenAI()
+        client = OpenAI(timeout=_env_int("OPENAI_TIMEOUT_SECONDS", 30))
         r = client.chat.completions.create(
             model=model, temperature=0, max_tokens=600,
             messages=[{"role": "system", "content": _SYSTEM},
                       {"role": "user", "content": prompt}],
         )
         return r.choices[0].message.content, f"openai:{model}"
-    except Exception:
+    except Exception as e:  # noqa: BLE001
+        log.warning("OpenAI model provider failed: %s", e)
         return None
 
 
@@ -101,13 +119,14 @@ def _try_anthropic(prompt: str):
     try:
         import anthropic
         model = os.environ.get("ANTHROPIC_MODEL", "claude-3-5-haiku-latest")
-        client = anthropic.Anthropic()
+        client = anthropic.Anthropic(timeout=_env_int("ANTHROPIC_TIMEOUT_SECONDS", 30))
         r = client.messages.create(
             model=model, max_tokens=600, temperature=0, system=_SYSTEM,
             messages=[{"role": "user", "content": prompt}],
         )
         return r.content[0].text, f"anthropic:{model}"
-    except Exception:
+    except Exception as e:  # noqa: BLE001
+        log.warning("Anthropic model provider failed: %s", e)
         return None
 
 
@@ -136,8 +155,10 @@ def _valid_judgement(data) -> bool:
     if not isinstance(data.get("rationale"), str) or not data["rationale"].strip():
         return False
     try:
-        float(data.get("confidence"))
+        conf = float(data.get("confidence"))
     except (TypeError, ValueError):
+        return False
+    if not 0 <= conf <= 1:
         return False
     return True
 

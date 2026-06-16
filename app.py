@@ -19,21 +19,28 @@ st.set_page_config(page_title="Facility Trust Desk", page_icon="🏥", layout="w
 
 CSS = """
 <style>
-.cap-card{border:1px solid #e5e7eb;border-left:6px solid var(--c,#6b7280);border-radius:10px;
-  padding:14px 16px;margin-bottom:12px;background:#ffffff;}
+.stApp{background:linear-gradient(180deg,#f4fbfb 0%,#f8fcff 46%,#ffffff 100%);color:#12313a;}
+[data-testid="stSidebar"]{background:#eef8f7;border-right:1px solid #d7ecea;}
+[data-testid="stSidebar"] *{color:#173b42;}
+h1,h2,h3{color:#12313a;}
+.block-container{padding-top:2rem;padding-bottom:2rem;}
+.cap-card{border:1px solid #dbecea;border-left:6px solid var(--c,#6b7280);border-radius:8px;
+  padding:15px 16px;margin-bottom:12px;background:#ffffff;box-shadow:0 8px 22px rgba(31,76,84,.07);}
 .cap-head{display:flex;justify-content:space-between;align-items:center;gap:8px;}
-.cap-title{font-weight:650;font-size:1.02rem;}
-.chip{color:#fff;border-radius:999px;padding:2px 10px;font-size:.78rem;font-weight:600;white-space:nowrap;}
-.prov{color:#6b7280;font-size:.74rem;margin-top:2px;}
-.rationale{font-size:.9rem;color:#111827;margin-top:6px;}
+.cap-title{font-weight:650;font-size:1.02rem;color:#153941;}
+.chip{color:#fff;border-radius:999px;padding:3px 10px;font-size:.78rem;font-weight:650;white-space:nowrap;}
+.prov{color:#54737a;font-size:.74rem;margin-top:3px;}
+.rationale{font-size:.9rem;color:#193942;margin-top:7px;}
 .ev{font-family:ui-monospace,Menlo,monospace;font-size:.82rem;line-height:1.55;
-  background:#f9fafb;border:1px solid #eef0f3;border-radius:8px;padding:8px 10px;margin:4px 0;white-space:pre-wrap;}
-.ev .lbl{color:#6b7280;font-weight:700;}
-mark.pos{background:#d7f0db;padding:0 2px;border-radius:3px;}
-mark.ind{background:#fdf0c2;padding:0 2px;border-radius:3px;}
-mark.neg{background:#fbd5d0;padding:0 2px;border-radius:3px;text-decoration:line-through;}
-.dq{background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;padding:6px 10px;font-size:.82rem;color:#7c2d12;}
-.ovr{background:#eef2ff;border:1px solid #c7d2fe;border-radius:6px;padding:2px 8px;font-size:.76rem;color:#3730a3;}
+  background:#f7fbfb;border:1px solid #e0eeee;border-radius:8px;padding:9px 10px;margin:4px 0;white-space:pre-wrap;}
+.ev .lbl{color:#55777d;font-weight:700;}
+mark.pos{background:#dff5e7;padding:0 2px;border-radius:3px;}
+mark.ind{background:#fff3c7;padding:0 2px;border-radius:3px;}
+mark.neg{background:#ffe0dc;padding:0 2px;border-radius:3px;text-decoration:line-through;}
+.dq{background:#fff8ed;border:1px solid #f3d4a6;border-radius:8px;padding:7px 10px;font-size:.82rem;color:#70420d;}
+.ovr{background:#e8f4ff;border:1px solid #b9d9f4;border-radius:6px;padding:2px 8px;font-size:.76rem;color:#17466a;}
+[data-testid="stProgress"] > div > div > div{background:#5fb7a6;}
+[data-testid="stExpander"]{border-color:#dbecea;border-radius:8px;background:#ffffff;}
 </style>
 """
 st.markdown(CSS, unsafe_allow_html=True)
@@ -58,11 +65,12 @@ def highlight(text: str, spans) -> str:
     spans = sorted([s for s in spans], key=lambda x: x.start)
     out, lastend = [], 0
     for s in spans:
-        if s.start < lastend:
+        start = max(s.start, lastend)
+        if start >= s.end:
             continue
-        out.append(html.escape(text[lastend:s.start]))
+        out.append(html.escape(text[lastend:start]))
         cls = "neg" if s.negated else ("pos" if s.kind == "positive" else "ind")
-        out.append(f'<mark class="{cls}">{html.escape(text[s.start:s.end])}</mark>')
+        out.append(f'<mark class="{cls}">{html.escape(text[start:s.end])}</mark>')
         lastend = s.end
     out.append(html.escape(text[lastend:]))
     return "".join(out)
@@ -79,9 +87,9 @@ query = st.sidebar.text_input("Search facility / city / state", "")
 view = df
 if query:
     q = query.lower()
-    mask = (df["name"].astype(str).str.lower().str.contains(q, na=False)
-            | df["city"].astype(str).str.lower().str.contains(q, na=False)
-            | df["state"].astype(str).str.lower().str.contains(q, na=False))
+    mask = (df["name"].astype(str).str.lower().str.contains(q, na=False, regex=False)
+            | df["city"].astype(str).str.lower().str.contains(q, na=False, regex=False)
+            | df["state"].astype(str).str.lower().str.contains(q, na=False, regex=False))
     view = df[mask]
 if view.empty:
     st.sidebar.warning("No matches; showing all.")
@@ -104,6 +112,9 @@ st.sidebar.caption("Engine order: Databricks FM → OpenAI → Anthropic → off
 assessments, row = assess_facility(fid, provider_salt)
 if row is None:
     st.warning("That facility isn't in the current data. Pick one from the sidebar.")
+    st.stop()
+if not assessments:
+    st.error("No assessments available.")
     st.stop()
 
 st.markdown(f"### {row['name']}")
@@ -141,7 +152,8 @@ st.markdown(summary, unsafe_allow_html=True)
 
 dq = assessments[next(iter(assessments))].data_quality
 if dq:
-    st.markdown("<div class='dq'>⚠ Data quality: " + " ".join(dq) + "</div>", unsafe_allow_html=True)
+    dq_text = " ".join(html.escape(str(item)) for item in dq)
+    st.markdown("<div class='dq'>⚠ Data quality: " + dq_text + "</div>", unsafe_allow_html=True)
 
 st.markdown("")
 cols = st.columns(2)
@@ -188,7 +200,7 @@ for i, (cap_key, a) in enumerate(assessments.items()):
                         store.add_action(fid, cap_key, "override", verdict_override=new_override, note=note or None)
                     elif note:
                         store.add_action(fid, cap_key, "note", note=note)
-                    st.success("Saved.")
+                    st.toast("Saved.")
                     st.rerun()
 
 # ---------------- Persisted actions ----------------

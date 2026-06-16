@@ -46,9 +46,8 @@ CAPABILITIES = OrderedDict([
     ("maternity", {
         "label": "Maternity / Delivery",
         "positive": ["maternity", "labour room", "labor room", "delivery", "deliveries",
-                     "obstetric", "caesarean", "c-section", "lscs", "institutional delivery",
-                     "antenatal"],
-        "indirect": ["gynaecologist", "gynecologist", "obstetrician", "anm", "midwife"],
+                     "obstetric", "caesarean", "c-section", "lscs", "institutional delivery"],
+        "indirect": ["gynaecologist", "gynecologist", "obstetrician", "antenatal", "anm", "midwife"],
     }),
     ("emergency", {
         "label": "Emergency / 24x7 Casualty",
@@ -69,7 +68,7 @@ CAPABILITIES = OrderedDict([
     }),
     ("surgery", {
         "label": "Surgery / Operation Theatre",
-        "positive": ["operation theatre", "operation theater", "ot", "surgery", "surgical",
+        "positive": ["operation theatre", "operation theater", "surgery", "surgical",
                      "major surgery", "minor ot", "laparoscopic"],
         "indirect": ["surgeon", "anaesthetist", "anesthetist"],
     }),

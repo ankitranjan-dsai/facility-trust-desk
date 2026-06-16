@@ -42,14 +42,14 @@ _WINDOW_AFTER = 28
 # ("ventilator out of order", "ICU nil", "maternity referred"), and the forward
 # window stops at a clause boundary so a negation about a *different* item in the
 # next clause ("SNCU. No adult ICU") cannot leak onto this one.
-_BACK_PATTERNS = [re.compile(r'(?<![a-z])' + re.escape(c) + r'(?![a-z])') for c in NEGATION_CUES]
+_BACK_PATTERNS = [re.compile(r'(?<![a-z0-9])' + re.escape(c) + r'(?![a-z0-9])') for c in NEGATION_CUES]
 _FORWARD_CUES = [
     "out of order", "non-functional", "non functional", "not functional",
     "referred", "referral", "refer", "under construction", "closed", "broken",
     "defunct", "not available", "unavailable", "yet to", "nil", "no", "na",
     "zero", "absent",
 ]
-_FWD_PATTERNS = [re.compile(r'(?<![a-z])' + re.escape(c) + r'(?![a-z])') for c in _FORWARD_CUES]
+_FWD_PATTERNS = [re.compile(r'(?<![a-z0-9])' + re.escape(c) + r'(?![a-z0-9])') for c in _FORWARD_CUES]
 
 
 def _is_negated(text_lower: str, start: int, end: int) -> bool:
@@ -125,6 +125,8 @@ def _score(spans: List[Span]):
 
 
 def extract(row, cap_key: str) -> EvidenceResult:
+    if cap_key not in CAPABILITIES:
+        raise ValueError(f"Unknown capability key: {cap_key}")
     cap = CAPABILITIES[cap_key]
     spans_by_field: Dict[str, List[Span]] = {}
     flat: List[Span] = []
