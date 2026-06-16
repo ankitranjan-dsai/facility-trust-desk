@@ -109,18 +109,29 @@ def _normalize(df: pd.DataFrame) -> pd.DataFrame:
 def _read_databricks_table(table: str) -> pd.DataFrame:
     if not _valid_table_name(table):
         raise ValueError(f"unsafe FACILITIES_TABLE identifier: {table!r}")
-    token = os.environ.get("DATABRICKS_TOKEN")
-    if not token:
-        raise ValueError("DATABRICKS_TOKEN is required to read FACILITIES_TABLE")
     from databricks import sql  # databricks-sql-connector
-    with sql.connect(
-        server_hostname=os.environ["DATABRICKS_SERVER_HOSTNAME"],
-        http_path=os.environ["DATABRICKS_HTTP_PATH"],
-        access_token=token,
-    ) as conn:
+    host = os.environ["DATABRICKS_SERVER_HOSTNAME"]
+    http_path = os.environ["DATABRICKS_HTTP_PATH"]
+    kwargs = {"server_hostname": host, "http_path": http_path}
+
+    token = os.environ.get("DATABRICKS_TOKEN")
+    if token:
+        kwargs["access_token"] = token
+    else:
+        # On Databricks Apps the runtime injects the app's service-principal OAuth
+        # credentials — use them so no PAT is needed.
+        client_id = os.environ.get("DATABRICKS_CLIENT_ID")
+        client_secret = os.environ.get("DATABRICKS_CLIENT_SECRET")
+        if not (client_id and client_secret):
+            raise ValueError("No DATABRICKS_TOKEN and no OAuth client credentials available")
+        from databricks.sdk.core import Config, oauth_service_principal
+        cfg = Config(host=f"https://{host}", client_id=client_id, client_secret=client_secret)
+        kwargs["credentials_provider"] = lambda: oauth_service_principal(cfg)
+
+    limit = int(os.environ.get("FACILITIES_LIMIT", "10000"))
+    with sql.connect(**kwargs) as conn:
         with conn.cursor() as cur:
-            limit = os.environ.get("FACILITIES_LIMIT", "10000")
-            cur.execute(f"SELECT * FROM {table} LIMIT {int(limit)}")
+            cur.execute(f"SELECT * FROM {table} LIMIT {limit}")
             cols = [d[0] for d in cur.description]
             return pd.DataFrame(cur.fetchall(), columns=cols)
 
