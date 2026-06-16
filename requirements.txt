@@ -1,0 +1,9 @@
+streamlit>=1.54.0
+pandas>=2.0
+# Lakebase / Postgres persistence (used when Lakebase env is set).
+psycopg[binary]>=3.1
+# Databricks + optional model providers — imports are lazy, so none are required to run.
+databricks-sdk>=0.68.0
+databricks-sql-connector>=3.0
+openai>=1.40
+anthropic>=0.34
