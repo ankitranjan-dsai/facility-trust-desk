@@ -35,15 +35,29 @@ class EvidenceResult:
 
 
 _WINDOW_BEFORE = 30
-_WINDOW_AFTER = 24
-_NEG_PATTERNS = [re.compile(r'(?<![a-z])' + re.escape(c) + r'(?![a-z])') for c in NEGATION_CUES]
+_WINDOW_AFTER = 28
+
+# Negation usually PRECEDES the term ("no ICU", "without OT"), so the backward
+# window honours every cue. Only a subset is meaningful when it FOLLOWS the term
+# ("ventilator out of order", "ICU nil", "maternity referred"), and the forward
+# window stops at a clause boundary so a negation about a *different* item in the
+# next clause ("SNCU. No adult ICU") cannot leak onto this one.
+_BACK_PATTERNS = [re.compile(r'(?<![a-z])' + re.escape(c) + r'(?![a-z])') for c in NEGATION_CUES]
+_FORWARD_CUES = [
+    "out of order", "non-functional", "non functional", "not functional",
+    "referred", "referral", "refer", "under construction", "closed", "broken",
+    "defunct", "not available", "unavailable", "yet to", "nil", "no", "na",
+    "zero", "absent",
+]
+_FWD_PATTERNS = [re.compile(r'(?<![a-z])' + re.escape(c) + r'(?![a-z])') for c in _FORWARD_CUES]
 
 
 def _is_negated(text_lower: str, start: int, end: int) -> bool:
     before = text_lower[max(0, start - _WINDOW_BEFORE):start]
-    after = text_lower[end:end + _WINDOW_AFTER]
-    ctx = before + " | " + after
-    return any(p.search(ctx) for p in _NEG_PATTERNS)
+    if any(p.search(before) for p in _BACK_PATTERNS):
+        return True
+    after = re.split(r"[.;]", text_lower[end:end + _WINDOW_AFTER], 1)[0]
+    return any(p.search(after) for p in _FWD_PATTERNS)
 
 
 def _find_terms(text: str, terms: List[str], kind: str, fieldname: str) -> List[Span]:

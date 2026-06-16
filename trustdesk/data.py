@@ -24,9 +24,49 @@ from . import sample_data
 log = logging.getLogger("trustdesk.data")
 
 CANONICAL = [
-    "facility_id", "name", "facility_type", "ownership", "state", "district",
-    "beds_total", "latitude", "longitude",
+    "facility_id", "name", "state", "city", "postcode",
+    "latitude", "longitude", "numberDoctors", "capacity", "yearEstablished",
 ] + TEXT_FIELDS
+
+# Map real dataset headers (any casing / spacing / camelCase) onto canonical names,
+# so the app reads the provided `facilities` table without a manual COLUMN_MAP.
+_ALIASES = {
+    "name": ["name", "facilityname", "facility", "hospitalname"],
+    "state": ["state"],
+    "city": ["city", "town"],
+    "postcode": ["postcode", "pincode", "pin", "zip", "zipcode", "postalcode"],
+    "latitude": ["latitude", "lat"],
+    "longitude": ["longitude", "lon", "lng", "long"],
+    "numberDoctors": ["numberdoctors", "numdoctors", "doctors", "numberofdoctors"],
+    "capacity": ["capacity", "beds", "bedcount", "numberofbeds", "bedcapacity"],
+    "yearEstablished": ["yearestablished", "established", "yearfounded", "estyear"],
+    "description": ["description", "desc", "about"],
+    "capability": ["capability", "capabilities"],
+    "procedure": ["procedure", "procedures"],
+    "equipment": ["equipment", "equipments"],
+    "specialties": ["specialties", "specialities", "controlledspecialties", "specialty", "speciality"],
+    "source_urls": ["sourceurls", "sourceurl", "sources", "urls"],
+}
+
+
+def _norm(s) -> str:
+    return re.sub(r"[^a-z0-9]", "", str(s).lower())
+
+
+def _resolve_aliases(df: pd.DataFrame) -> pd.DataFrame:
+    norm_to_col = {}
+    for c in df.columns:
+        norm_to_col.setdefault(_norm(c), c)
+    rename = {}
+    for canon, variants in _ALIASES.items():
+        if canon in df.columns:
+            continue
+        for v in variants:
+            col = norm_to_col.get(v)
+            if col is not None and col not in rename:
+                rename[col] = canon
+                break
+    return df.rename(columns=rename) if rename else df
 
 # A safe (optionally) qualified identifier: catalog.schema.table — letters, digits,
 # underscores only, 1–3 dot-separated parts. Guards against SQL injection via env.
@@ -51,7 +91,8 @@ def _apply_column_map(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def _normalize(df: pd.DataFrame) -> pd.DataFrame:
-    df = _apply_column_map(df)
+    df = _apply_column_map(df)        # explicit overrides win
+    df = _resolve_aliases(df)         # then auto-map real headers to canonical
     if "facility_id" not in df.columns:
         df = df.reset_index(drop=True)
         df["facility_id"] = df.index.map(lambda i: f"ROW-{i:05d}")

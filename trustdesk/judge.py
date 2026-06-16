@@ -14,7 +14,7 @@ from .capabilities import CAPABILITIES, TEXT_FIELDS, FIELD_LABELS
 # verdict -> (label, default confidence, colour)
 VERDICT_META = {
     "Supported":   ("Strong evidence",            0.90, "#1a7f37"),
-    "Likely":      ("Some evidence",              0.68, "#3a7d44"),
+    "Likely":      ("Partial evidence",           0.68, "#3a7d44"),
     "Conflicting": ("Conflicting — needs review", 0.45, "#b35900"),
     "Unsupported": ("Contradicted by record",     0.80, "#b3261e"),
     "Weak":        ("Indirect only",              0.40, "#8a6d00"),
@@ -64,20 +64,22 @@ def build_source_text(row) -> str:
     return "\n".join(parts)
 
 
+def _missing(v) -> bool:
+    return v is None or str(v).strip().lower() in ("", "nan", "none")
+
+
 def _data_quality(row) -> List[str]:
     notes = []
     total_text = sum(len(str(row.get(f) or "").strip()) for f in TEXT_FIELDS)
     if total_text < 40:
-        notes.append("Sparse record — very little free text to assess; treat verdicts as low-information.")
-    beds = row.get("beds_total")
-    if beds is None or str(beds).strip().lower() in ("", "nan", "none"):
-        notes.append("Bed count missing or zero.")
-    else:
-        try:
-            if float(beds) == 0:
-                notes.append("Bed count missing or zero.")
-        except (TypeError, ValueError):
-            notes.append("Bed count not a clean number.")
+        notes.append("Sparse record — very little evidence text to assess; treat verdicts as low-information.")
+    if _missing(row.get("description")):
+        notes.append("No description text.")
+    thin = [f for f in ("capability", "procedure", "equipment") if _missing(row.get(f))]
+    if thin:
+        notes.append("Missing evidence field(s): " + ", ".join(thin) + ".")
+    if _missing(row.get("capacity")):
+        notes.append("Bed capacity not reported.")
     return notes
 
 

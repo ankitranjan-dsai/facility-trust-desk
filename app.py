@@ -75,18 +75,19 @@ provider_salt = os.environ.get("MODEL_PROVIDER", "auto") + "|" + os.environ.get(
 # ---------------- Sidebar: select a facility ----------------
 st.sidebar.title("🏥 Facility Trust Desk")
 st.sidebar.caption("Evidence-backed capability checks for health-facility planners.")
-query = st.sidebar.text_input("Search facility / district", "")
+query = st.sidebar.text_input("Search facility / city / state", "")
 view = df
 if query:
     q = query.lower()
     mask = (df["name"].astype(str).str.lower().str.contains(q, na=False)
-            | df["district"].astype(str).str.lower().str.contains(q, na=False))
+            | df["city"].astype(str).str.lower().str.contains(q, na=False)
+            | df["state"].astype(str).str.lower().str.contains(q, na=False))
     view = df[mask]
 if view.empty:
     st.sidebar.warning("No matches; showing all.")
     view = df
 
-labels = {str(r.facility_id): f"{r.name} — {r.district}" for r in view.itertuples()}
+labels = {str(r.facility_id): f"{r.name} — {r.city}, {r.state}" for r in view.itertuples()}
 options = list(labels)
 if not options:
     st.error("No facilities are loaded. Check the data source.")
@@ -112,19 +113,22 @@ def _has(v):
     return v is not None and str(v).strip().lower() not in ("", "nan", "none")
 
 
-_meta_parts = []
-if _has(row.get("facility_type")):
-    _meta_parts.append(str(row["facility_type"]))
-if _has(row.get("ownership")):
-    _meta_parts.append(str(row["ownership"]))
-_loc = ", ".join(str(row[k]) for k in ("district", "state") if _has(row.get(k)))
-if _loc:
-    _meta_parts.append(_loc)
-if _has(row.get("beds_total")):
+def _num(v, suffix):
     try:
-        _meta_parts.append(f"{int(float(row['beds_total']))} beds")
+        return f"{int(float(v))}{suffix}"
     except (TypeError, ValueError):
-        pass
+        return None
+
+
+_loc = ", ".join(str(row[k]) for k in ("city", "state") if _has(row.get(k)))
+if _has(row.get("postcode")):
+    _loc = f"{_loc} {str(row['postcode']).split('.')[0]}".strip()
+_meta_parts = [p for p in [
+    _loc or None,
+    _num(row.get("capacity"), " beds") if _has(row.get("capacity")) else None,
+    _num(row.get("numberDoctors"), " doctors") if _has(row.get("numberDoctors")) else None,
+    (f"est. {str(row['yearEstablished']).split('.')[0]}" if _has(row.get("yearEstablished")) else None),
+] if p]
 st.caption(" · ".join(_meta_parts))
 
 # trust summary

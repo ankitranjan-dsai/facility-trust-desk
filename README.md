@@ -4,8 +4,8 @@
 
 Turns messy Indian health-facility records into **trustworthy, cited capability
 verdicts** for non-technical planners. For any facility it answers: *can this
-place actually deliver ICU / maternity / emergency / surgery / blood bank /
-diagnostics?* — and shows the **exact source text** behind every answer, communicates
+place actually deliver ICU, NICU, maternity, emergency, trauma, oncology, surgery,
+diagnostics, or blood bank?* — and shows the **exact source text** behind every answer, communicates
 **uncertainty honestly**, and lets a planner **add notes or override** (persisted).
 
 ## Why it's trustworthy (the core idea)
@@ -34,12 +34,20 @@ partial capability, inconsistent casing, sparse records).
 ## Deploy as a Databricks App (Free Edition)
 1. Push this repo to your Databricks workspace (Apps → create → from repo) — `app.yaml` is the entrypoint.
 2. Set the model endpoint in `app.yaml` (`DATABRICKS_MODEL_ENDPOINT`) to a Foundation Model serving endpoint you have access to.
-3. Point at the provided dataset (one of):
-   - `FACILITIES_TABLE=catalog.schema.table` (read via SQL warehouse — set `DATABRICKS_SERVER_HOSTNAME`, `DATABRICKS_HTTP_PATH`, `DATABRICKS_TOKEN`), or
-   - `FACILITIES_CSV=/Volumes/.../facilities.csv`.
-4. Map real columns to the canonical schema with `COLUMN_MAP` (JSON), e.g.
-   `COLUMN_MAP='{"facility_name":"name","services":"services_text","dist":"district"}'`.
-   Canonical text fields scanned for evidence: `services_text`, `infrastructure_text`, `notes_text`.
+3. Point at the provided dataset. It ships as a **Databricks Marketplace** listing
+   ("Virtue Foundation") — *Get instant access* adds a catalog
+   `databricks_virtue_foundation_dataset_…` with schema `virtue_foundation_dataset`
+   and the table **`facilities`** (10k rows, 51 cols; plus `india_post_pincode_directory`
+   and `nfhs_5_district_health_indicators`). Set:
+   - `FACILITIES_TABLE=<catalog>.virtue_foundation_dataset.facilities` (read via a SQL
+     warehouse — set `DATABRICKS_SERVER_HOSTNAME`, `DATABRICKS_HTTP_PATH`, `DATABRICKS_TOKEN`), or
+   - `FACILITIES_CSV=/Volumes/.../facilities.csv` for an exported copy.
+4. **Column mapping is automatic.** The loader maps the real headers (any casing /
+   spacing / camelCase) onto the canonical schema. Evidence is scanned across
+   `description`, `capability`, `procedure`, `equipment`, `specialties`, `source_urls`;
+   structured fields used: `name`, `state`, `city`, `postcode`, `latitude`,
+   `longitude`, `numberDoctors`, `capacity`, `yearEstablished`. Override anything with
+   `COLUMN_MAP` (JSON) only if a header doesn't auto-resolve.
 
 ## Persistence (Lakebase)
 Planner notes + verdict overrides persist via `trustdesk/store.py`, which picks its
