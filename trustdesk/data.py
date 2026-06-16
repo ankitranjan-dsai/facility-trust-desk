@@ -112,7 +112,9 @@ def _read_databricks_table(table: str) -> pd.DataFrame:
     from databricks import sql  # databricks-sql-connector
     host = os.environ["DATABRICKS_SERVER_HOSTNAME"]
     http_path = os.environ["DATABRICKS_HTTP_PATH"]
-    kwargs = {"server_hostname": host, "http_path": http_path}
+    # use_cloud_fetch=False: return results inline via the warehouse instead of a
+    # direct cloud-storage download, which the Databricks Apps sandbox blocks.
+    kwargs = {"server_hostname": host, "http_path": http_path, "use_cloud_fetch": False}
 
     token = os.environ.get("DATABRICKS_TOKEN")
     if token:
