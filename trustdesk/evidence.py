@@ -86,27 +86,30 @@ def _dedupe(spans: List[Span]) -> List[Span]:
 
 def _score(spans: List[Span]):
     pos = [s for s in spans if s.kind == "positive" and not s.negated]
-    neg = [s for s in spans if s.negated]
     ind = [s for s in spans if s.kind == "indirect" and not s.negated]
+    neg_pos = [s for s in spans if s.negated and s.kind == "positive"]
+    neg_ind = [s for s in spans if s.negated and s.kind == "indirect"]
     distinct_pos = {s.term for s in pos}
     reasons: List[str] = []
 
-    if pos and neg:
+    if pos and neg_pos:
         verdict, label, conf = "Conflicting", "Conflicting — needs review", 0.45
-        reasons.append("Both supporting and contradicting language present.")
+        reasons.append("Both supporting and contradicting direct claims present.")
     elif len(distinct_pos) >= 2:
         verdict, label, conf = "Supported", "Strong evidence", 0.90
     elif pos:
         verdict, label, conf = "Likely", "Some evidence", 0.68
-    elif neg:
+    elif neg_pos:
         verdict, label, conf = "Unsupported", "Contradicted by record", 0.80
         reasons.append("Record explicitly says this is absent / broken / referred out.")
     elif ind:
         verdict, label, conf = "Weak", "Indirect only", 0.40
         reasons.append("Only indirect signals (e.g. a relevant specialist) — not confirmed.")
     else:
+        # Only a negated indirect mention (e.g. "no ambulance") is far too weak to
+        # call the capability contradicted — report it honestly as not stated.
         verdict, label, conf = "Not stated", "No evidence in record", 0.12
-        reasons.append("No supporting or contradicting text found.")
+        reasons.append("No reliable supporting or contradicting text found.")
 
     def _uniq(spans):
         seen, out = set(), []
@@ -119,8 +122,8 @@ def _score(spans: List[Span]):
 
     if pos:
         reasons.append("Supporting: " + ", ".join(f'"{t}"' for t in _uniq(pos)[:4]))
-    if neg:
-        reasons.append("Contradicting: " + ", ".join(f'"{t}"' for t in _uniq(neg)[:4]))
+    if neg_pos:
+        reasons.append("Contradicting: " + ", ".join(f'"{t}"' for t in _uniq(neg_pos)[:4]))
     return verdict, label, conf, reasons
 
 
