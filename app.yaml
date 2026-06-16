@@ -1,0 +1,25 @@
+# Databricks Apps entrypoint.
+# run_app.sh binds Streamlit to the port Databricks injects ($DATABRICKS_APP_PORT).
+command:
+  - bash
+  - run_app.sh
+
+env:
+  # The model serving endpoint to use for the LLM judge (Foundation Model API).
+  - name: DATABRICKS_MODEL_ENDPOINT
+    value: "databricks-meta-llama-3-3-70b-instruct"
+  # Point at the provided 10k dataset (Unity Catalog table). Leave blank to use sample data.
+  - name: FACILITIES_TABLE
+    value: ""
+  # Force a provider if you like: databricks | openai | anthropic | offline
+  - name: MODEL_PROVIDER
+    value: "databricks"
+  # Lakebase persistence — set these to your Lakebase Postgres instance (see README).
+  - name: LAKEBASE_HOST
+    value: ""
+  - name: LAKEBASE_DATABASE
+    value: "databricks_postgres"
+  - name: LAKEBASE_USER
+    value: ""
+  - name: DATABRICKS_DATABASE_INSTANCE
+    value: ""
