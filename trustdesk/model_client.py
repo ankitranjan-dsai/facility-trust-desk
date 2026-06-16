@@ -154,8 +154,10 @@ def judge_with_llm(source_text: str, capability_label: str):
         if not _valid_judgement(data):
             continue
         # Anti-hallucination guard: keep only quotes that are verbatim substrings.
-        quotes = [q for q in (data.get("quotes") or []) if isinstance(q, str) and q and q in source_text]
-        data["quotes"] = quotes
+        raw_quotes = data.get("quotes")
+        if not isinstance(raw_quotes, list):
+            raw_quotes = []
+        data["quotes"] = [q for q in raw_quotes if isinstance(q, str) and q and q in source_text]
         data["provider"] = provider
         return data
     return None

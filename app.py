@@ -79,7 +79,8 @@ query = st.sidebar.text_input("Search facility / district", "")
 view = df
 if query:
     q = query.lower()
-    mask = df["name"].str.lower().str.contains(q) | df["district"].astype(str).str.lower().str.contains(q)
+    mask = (df["name"].astype(str).str.lower().str.contains(q, na=False)
+            | df["district"].astype(str).str.lower().str.contains(q, na=False))
     view = df[mask]
 if view.empty:
     st.sidebar.warning("No matches; showing all.")
@@ -105,10 +106,26 @@ if row is None:
     st.stop()
 
 st.markdown(f"### {row['name']}")
-meta = " · ".join(str(x) for x in [row.get("facility_type"), row.get("ownership"),
-                                   f"{row.get('district')}, {row.get('state')}",
-                                   f"{row.get('beds_total') or '?'} beds"] if x)
-st.caption(meta)
+
+
+def _has(v):
+    return v is not None and str(v).strip().lower() not in ("", "nan", "none")
+
+
+_meta_parts = []
+if _has(row.get("facility_type")):
+    _meta_parts.append(str(row["facility_type"]))
+if _has(row.get("ownership")):
+    _meta_parts.append(str(row["ownership"]))
+_loc = ", ".join(str(row[k]) for k in ("district", "state") if _has(row.get(k)))
+if _loc:
+    _meta_parts.append(_loc)
+if _has(row.get("beds_total")):
+    try:
+        _meta_parts.append(f"{int(float(row['beds_total']))} beds")
+    except (TypeError, ValueError):
+        pass
+st.caption(" · ".join(_meta_parts))
 
 # trust summary
 counts = {}
