@@ -19,28 +19,38 @@ st.set_page_config(page_title="Facility Trust Desk", page_icon="🏥", layout="w
 
 CSS = """
 <style>
-.stApp{background:linear-gradient(180deg,#f4fbfb 0%,#f8fcff 46%,#ffffff 100%);color:#12313a;}
-[data-testid="stSidebar"]{background:#eef8f7;border-right:1px solid #d7ecea;}
-[data-testid="stSidebar"] *{color:#173b42;}
-h1,h2,h3{color:#12313a;}
-.block-container{padding-top:2rem;padding-bottom:2rem;}
-.cap-card{border:1px solid #dbecea;border-left:6px solid var(--c,#6b7280);border-radius:8px;
-  padding:15px 16px;margin-bottom:12px;background:#ffffff;box-shadow:0 8px 22px rgba(31,76,84,.07);}
-.cap-head{display:flex;justify-content:space-between;align-items:center;gap:8px;}
-.cap-title{font-weight:650;font-size:1.02rem;color:#153941;}
-.chip{color:#fff;border-radius:999px;padding:3px 10px;font-size:.78rem;font-weight:650;white-space:nowrap;}
-.prov{color:#54737a;font-size:.74rem;margin-top:3px;}
-.rationale{font-size:.9rem;color:#193942;margin-top:7px;}
-.ev{font-family:ui-monospace,Menlo,monospace;font-size:.82rem;line-height:1.55;
-  background:#f7fbfb;border:1px solid #e0eeee;border-radius:8px;padding:9px 10px;margin:4px 0;white-space:pre-wrap;}
-.ev .lbl{color:#55777d;font-weight:700;}
-mark.pos{background:#dff5e7;padding:0 2px;border-radius:3px;}
-mark.ind{background:#fff3c7;padding:0 2px;border-radius:3px;}
-mark.neg{background:#ffe0dc;padding:0 2px;border-radius:3px;text-decoration:line-through;}
-.dq{background:#fff8ed;border:1px solid #f3d4a6;border-radius:8px;padding:7px 10px;font-size:.82rem;color:#70420d;}
-.ovr{background:#e8f4ff;border:1px solid #b9d9f4;border-radius:6px;padding:2px 8px;font-size:.76rem;color:#17466a;}
-[data-testid="stProgress"] > div > div > div{background:#5fb7a6;}
-[data-testid="stExpander"]{border-color:#dbecea;border-radius:8px;background:#ffffff;}
+/* Theme-aware: inherit Streamlit's light/dark theme via CSS variables, so the app
+   looks right in both. Only custom HTML blocks are styled; native widgets keep
+   their theming. Colours fall back to light values on older Streamlit. */
+.block-container{padding-top:2rem;padding-bottom:2.5rem;max-width:1200px;}
+
+.cap-card{
+  border:1px solid rgba(128,128,128,.22);
+  border-left:6px solid var(--c,#6b7280);
+  border-radius:12px;padding:15px 17px;margin-bottom:12px;
+  background:var(--secondary-background-color,#ffffff);
+  color:var(--text-color,#12313a);
+  box-shadow:0 6px 18px rgba(0,0,0,.06);
+}
+.cap-head{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;}
+.cap-title{font-weight:650;font-size:1.03rem;line-height:1.25;}
+.chip{color:#fff;border-radius:999px;padding:3px 11px;font-size:.78rem;font-weight:650;
+  white-space:nowrap;letter-spacing:.2px;}
+.prov{font-size:.74rem;margin-top:5px;opacity:.6;}
+.rationale{font-size:.92rem;margin-top:9px;line-height:1.5;}
+.ev{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.82rem;line-height:1.6;
+  background:rgba(127,127,127,.09);border:1px solid rgba(128,128,128,.18);
+  border-radius:8px;padding:10px 12px;margin:5px 0;white-space:pre-wrap;}
+.ev .lbl{font-weight:700;opacity:.65;}
+mark.pos{background:rgba(26,127,55,.30);color:inherit;padding:0 3px;border-radius:3px;font-weight:600;}
+mark.ind{background:rgba(176,138,0,.34);color:inherit;padding:0 3px;border-radius:3px;}
+mark.neg{background:rgba(179,38,30,.32);color:inherit;padding:0 3px;border-radius:3px;text-decoration:line-through;}
+.dq{background:rgba(245,158,11,.13);border:1px solid rgba(245,158,11,.45);
+  border-radius:8px;padding:8px 11px;font-size:.84rem;margin:2px 0 8px;}
+.ovr{background:rgba(99,102,241,.18);border:1px solid rgba(99,102,241,.42);
+  border-radius:6px;padding:2px 8px;font-size:.74rem;}
+.legend{font-size:.74rem;opacity:.7;margin-top:5px;}
+[data-testid="stProgress"] > div > div > div > div{background:var(--primary-color,#2f9e8f);}
 </style>
 """
 st.markdown(CSS, unsafe_allow_html=True)
@@ -76,6 +86,15 @@ def highlight(text: str, spans) -> str:
     return "".join(out)
 
 
+def _present(v):
+    return v is not None and str(v).strip().lower() not in ("", "nan", "none")
+
+
+def _facility_label(r):
+    loc = ", ".join(str(v) for v in (getattr(r, "city", None), getattr(r, "state", None)) if _present(v))
+    return f"{r.name} — {loc}" if loc else str(r.name)
+
+
 store.init_db()
 df = load_data()
 provider_salt = os.environ.get("MODEL_PROVIDER", "auto") + "|" + os.environ.get("DATABRICKS_MODEL_ENDPOINT", "")
@@ -95,7 +114,7 @@ if view.empty:
     st.sidebar.warning("No matches; showing all.")
     view = df
 
-labels = {str(r.facility_id): f"{r.name} — {r.city}, {r.state}" for r in view.itertuples()}
+labels = {str(r.facility_id): _facility_label(r) for r in view.itertuples()}
 options = list(labels)
 if not options:
     st.error("No facilities are loaded. Check the data source.")
